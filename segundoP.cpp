@@ -1,529 +1,321 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
+#include <limits>
 
 using namespace std;
 
 // Constantes
-const int MAX_PRODUCTOS = 50;
-const int MAX_CLIENTES = 50;
-const int MAX_VENTAS = 100;
+template<typename T, size_t N> constexpr size_t array_size(T (&)[N]) { return N; }
+const int MAX_PRODUCTOS = 50, MAX_CLIENTES = 50, MAX_VENTAS = 100;
 
-// ========== VARIABLES GLOBALES ==========
+// Estructuras
+template<typename T> struct Registro { int codigo; string nombre; T extra; int stock = 0; };
+using Producto = Registro<float>;
+using Cliente = Registro<string>;
 
-// Estructuras de datos
-struct Producto {
-    int codigo;
-    string nombre;
-    float precio;
-    int stock;
-};
-
-struct Cliente {
-    int codigo;
-    string nombre;
-    string tipo; // "mayorista" o "minorista"
-};
-
-// Vectores para almacenamiento
+// Variables globales
 Producto productos[MAX_PRODUCTOS];
 Cliente clientes[MAX_CLIENTES];
-int contadorProductos = 0;
-int contadorClientes = 0;
-
-// Matriz para ventas [codCliente, codProducto, cantidad]
+int contadores[3] = {0}; // [0]=productos, [1]=clientes, [2]=ventas
 int ventas[MAX_VENTAS][3];
-int contadorVentas = 0;
 
-// Matrices auxiliares para reportes
-float totalPorProducto[MAX_PRODUCTOS][2]; // [codProducto, total vendido]
-float totalPorCliente[MAX_CLIENTES][2];   // [codCliente, total comprado]
-
-// ========== DECLARACIÓN DE FUNCIONES AUXILIARES ==========
-int buscarProductoPorCodigo(int codigo);
-int buscarClientePorCodigo(int codigo);
-string obtenerNombreCliente(int codCliente);
-string obtenerNombreProducto(int codProducto);
-float obtenerPrecioProducto(int codProducto);
-void inicializarMatrices();
-void mostrarEncabezadoProductos();
-void mostrarProducto(int indice);
-
-// ========== DECLARACIÓN DE FUNCIONES PRINCIPALES ==========
+// Prototipos
+void limpiarPantalla();
+template<typename T> T leerValor(const string& mensaje, T min = numeric_limits<T>::min(), T max = numeric_limits<T>::max());
+int buscarPorCodigo(const auto& arr, int size, int codigo);
+void mostrarEncabezado(const string& titulo);
 void mostrarMenu();
 void registrarProductos();
 void registrarClientes();
 void realizarVenta();
 void mostrarStock();
-void mostrarResumen();
 void buscarProducto();
-void inicializarDatos();
+void mostrarResumenVentas();
 
 // ========== FUNCIÓN PRINCIPAL ==========
 int main() {
+    const string opciones[] = {"Salir", "Registrar productos", "Registrar clientes", 
+                             "Mostrar stock", "Buscar producto", "Realizar venta", 
+                             "Mostrar resumen de ventas"};
+    void (*acciones[])() = {nullptr, registrarProductos, registrarClientes, 
+                           mostrarStock, buscarProducto, realizarVenta, mostrarResumenVentas};
+    
     int opcion;
-    
-    inicializarDatos();
-    
     do {
         mostrarMenu();
-        cout << "\nIngrese una opcion: ";
-        cin >> opcion;
-        
-        switch(opcion) {
-            case 1:
-                registrarProductos();
-                break;
-            case 2:
-                registrarClientes();
-                break;
-            case 3:
-                realizarVenta();
-                break;
-            case 4:
-                mostrarStock();
-                break;
-            case 5:
-                buscarProducto();
-                break;
-            case 6:
-                mostrarResumen();
-                break;
-            case 0:
-                cout << "\nSaliendo del sistema...\n";
-                break;
-            default:
-                cout << "Opcion invalida. Intente nuevamente.\n";
-        }
-        
-        if(opcion != 0) {
+        opcion = leerValor<int>("\nIngrese una opcion: ", 0, array_size(opciones)-1);
+        if (opcion > 0) acciones[opcion]();
+        if (opcion != 0) {
             cout << "\nPresione Enter para continuar...";
             cin.ignore();
             cin.get();
         }
-        
-    } while(opcion != 0);
+    } while (opcion != 0);
     
+    cout << "\nSaliendo del sistema...\n";
     return 0;
 }
 
-// ========== IMPLEMENTACIÓN DE FUNCIONES AUXILIARES ==========
+// Funciones auxiliares
+void limpiarPantalla() { system("cls || clear"); }
 
-int buscarProductoPorCodigo(int codigo) {
-    for (int i = 0; i < contadorProductos; i++) {
-        if (productos[i].codigo == codigo) {
-            return i;
-        }
+template<typename T>
+T leerValor(const string& mensaje, T min, T max) {
+    T valor;
+    while (true) {
+        cout << mensaje;
+        if (cin >> valor && valor >= min && (max == numeric_limits<T>::max() || valor <= max)) 
+            return valor;
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Valor inválido. " << (min != numeric_limits<T>::min() ? 
+            "Debe ser mayor o igual a " + to_string(min) + 
+            (max != numeric_limits<T>::max() ? " y menor o igual a " + to_string(max) : "") : "") << ".\n";
     }
+}
+
+int buscarPorCodigo(const auto& arr, int size, int codigo) {
+    for (int i = 0; i < size; i++)
+        if (arr[i].codigo == codigo) return i;
     return -1;
 }
 
-int buscarClientePorCodigo(int codigo) {
-    for (int i = 0; i < contadorClientes; i++) {
-        if (clientes[i].codigo == codigo) {
-            return i;
-        }
-    }
-    return -1;
+void mostrarEncabezado(const string& titulo) {
+    limpiarPantalla();
+    cout << "--- " << titulo << " ---\n\n";
 }
 
-string obtenerNombreCliente(int codCliente) {
-    int indice = buscarClientePorCodigo(codCliente);
-    return (indice != -1) ? clientes[indice].nombre : "Cliente no encontrado";
-}
+// ========== IMPLEMENTACIÓN DE FUNCIONES PRINCIPALES ==========
 
-string obtenerNombreProducto(int codProducto) {
-    int indice = buscarProductoPorCodigo(codProducto);
-    return (indice != -1) ? productos[indice].nombre : "Producto no encontrado";
-}
+void limpiarPantalla() { system("cls || clear"); }
+void pausa() { cout << "\nPresione Enter para continuar..."; cin.ignore(); cin.get(); }
 
-float obtenerPrecioProducto(int codProducto) {
-    int indice = buscarProductoPorCodigo(codProducto);
-    return (indice != -1) ? productos[indice].precio : 0.0f;
-}
-
-void inicializarMatrices() {
-    for (int i = 0; i < MAX_PRODUCTOS; i++) {
-        totalPorProducto[i][0] = totalPorProducto[i][1] = 0;
-    }
-    for (int i = 0; i < MAX_CLIENTES; i++) {
-        totalPorCliente[i][0] = totalPorCliente[i][1] = 0;
-    }
-}
-
-void mostrarEncabezadoProductos() {
-    cout << left << setw(10) << "Codigo"
-         << setw(25) << "Nombre"
-         << setw(12) << "Precio"
-         << setw(10) << "Stock" << endl;
-    cout << string(57, '-') << endl;
-}
-
-void mostrarProducto(int indice) {
-    cout << left << setw(10) << productos[indice].codigo
-         << setw(25) << productos[indice].nombre
-         << "$" << setw(11) << fixed << setprecision(2) << productos[indice].precio
-         << setw(10) << productos[indice].stock << endl;
-}
-
-// Función para inicializar datos
-void inicializarDatos() {
-    inicializarMatrices();
-}
-
-// Función para mostrar el menú principal
 void mostrarMenu() {
-    system("clear"); // Para Linux/Mac, usar "cls" en Windows
-    cout << "========================================\n";
-    cout << "   SISTEMA DE GESTION - DISTRIBUIDORA\n";
-    cout << "========================================\n";
-    cout << "1. Registrar productos\n";
-    cout << "2. Registrar clientes\n";
-    cout << "3. Mostrar stock de productos\n";
-    cout << "4. Buscar producto por codigo\n";
-    cout << "5. Realizar venta\n";
-    cout << "6. Mostrar resumen de ventas\n";
-    cout << "0. Salir\n";
-    cout << "========================================\n";
+    limpiarPantalla();
+    const char* menu[] = {
+        "========================================",
+        "   SISTEMA DE GESTION - DISTRIBUIDORA",
+        "========================================",
+        "1. Registrar productos",
+        "2. Registrar clientes",
+        "3. Mostrar stock de productos",
+        "4. Buscar producto por código",
+        "5. Realizar venta",
+        "6. Mostrar resumen de ventas",
+        "0. Salir",
+        "========================================"
+    };
+    for (const auto& linea : menu) cout << linea << '\n';
 }
 
-// Función para registrar nuevos productos
-// Solicita los datos al usuario y los guarda en el arreglo de productos
 void registrarProductos() {
-    if(contadorProductos >= MAX_PRODUCTOS) {
-        cout << endl << "No se pueden registrar mas productos. Limite alcanzado." << endl;
+    if (contadores[0] >= MAX_PRODUCTOS) {
+        cout << "\nNo se pueden registrar más productos. Límite alcanzado.\n";
         return;
     }
     
-    Producto nuevoProducto;
-    cout << endl << "--- REGISTRAR PRODUCTO ---" << endl;
+    mostrarEncabezado("REGISTRAR PRODUCTO");
     
-    // Solicitar código de producto
-    cout << "Ingrese codigo de producto: ";
-    cin >> nuevoProducto.codigo;
+    Producto p;
+    p.codigo = leerValor<int>("Código de producto: ");
     
-    // Verificar si el código ya existe
-    if (buscarProductoPorCodigo(nuevoProducto.codigo) != -1) {
-        cout << "Error: El codigo de producto ya existe." << endl;
+    if (buscarPorCodigo(productos, contadores[0], p.codigo) != -1) {
+        cout << "Error: El código ya existe.\n";
         return;
     }
     
-    cin.ignore(); // Limpiar buffer
+    cout << "Nombre: ";
+    cin.ignore();
+    getline(cin, p.nombre);
+    p.extra = leerValor<float>("Precio unitario: $", 0.01f);
+    p.stock = leerValor<int>("Stock inicial: ", 0);
     
-    // Solicitar nombre del producto
-    cout << "Ingrese nombre del producto: ";
-    getline(cin, nuevoProducto.nombre);
-    
-    // Solicitar precio unitario
-    cout << "Ingrese precio unitario: $";
-    cin >> nuevoProducto.precio;
-    
-    // Validar precio positivo
-    while(nuevoProducto.precio <= 0) {
-        cout << "Error: El precio debe ser mayor a 0. Intente nuevamente: $";
-        cin >> nuevoProducto.precio;
-    }
-    
-    // Solicitar stock inicial
-    cout << "Ingrese stock disponible: ";
-    cin >> nuevoProducto.stock;
-    
-    // Validar stock no negativo
-    while(nuevoProducto.stock < 0) {
-        cout << "Error: El stock no puede ser negativo. Intente nuevamente: ";
-        cin >> nuevoProducto.stock;
-    }
-    
-    // Agregar el nuevo producto al arreglo
-    productos[contadorProductos] = nuevoProducto;
-    contadorProductos++;
-    
-    cout << endl << "¡Producto registrado exitosamente!" << endl;
+    productos[contadores[0]++] = p;
+    cout << "\n¡Producto registrado exitosamente!\n";
 }
 
-// Función para registrar nuevos clientes
-// Almacena la información del cliente en el arreglo de clientes
 void registrarClientes() {
-    if(contadorClientes >= MAX_CLIENTES) {
-        cout << endl << "No se pueden registrar más clientes. Límite alcanzado." << endl;
+    if (contadores[1] >= MAX_CLIENTES) {
+        cout << "\nNo se pueden registrar más clientes. Límite alcanzado.\n";
         return;
     }
     
-    Cliente nuevoCliente;
-    cout << endl << "--- REGISTRAR CLIENTE ---" << endl;
+    mostrarEncabezado("REGISTRAR CLIENTE");
     
-    // Generar código de cliente automáticamente (empezando desde 1000)
-    nuevoCliente.codigo = 1000 + contadorClientes;
-    cout << "Codigo de cliente asignado: " << nuevoCliente.codigo << endl;
+    Cliente c;
+    c.codigo = 1000 + contadores[1];
+    cout << "Código asignado: " << c.codigo << "\n";
     
-    cin.ignore(); // Limpiar buffer
+    cout << "Nombre: ";
+    cin.ignore();
+    getline(cin, c.nombre);
     
-    // Solicitar nombre del cliente
-    cout << "Ingrese nombre del cliente: ";
-    getline(cin, nuevoCliente.nombre);
+    int tipo = leerValor<int>("Tipo de cliente (1:Mayorista, 2:Minorista): ", 1, 2);
+    c.extra = (tipo == 1) ? "Mayorista" : "Minorista";
     
-    // Solicitar tipo de cliente
-    int tipo;
-    cout << "Tipo de cliente:\n";
-    cout << "1. Mayorista\n";
-    cout << "2. Minorista\n";
-    cout << "Seleccione opcion: ";
-    cin >> tipo;
-    
-    if(tipo == 1) {
-        nuevoCliente.tipo = "Mayorista";
-    } else if(tipo == 2) {
-        nuevoCliente.tipo = "Minorista";
-    } else {
-        cout << "Opcion invalida. Se registrara como Minorista.\n";
-        nuevoCliente.tipo = "Minorista";
-    }
-    
-    // Agregar el nuevo cliente al arreglo
-    clientes[contadorClientes] = nuevoCliente;
-    contadorClientes++;
-    
-    cout << endl << "¡Cliente registrado exitosamente!" << endl;
+    clientes[contadores[1]++] = c;
+    cout << "\n¡Cliente registrado exitosamente!\n";
 }
 
-// Función para realizar una venta
-// Verifica stock disponible y registra la operación
 void realizarVenta() {
-    if(contadorProductos == 0) {
-        cout << endl << "No hay productos registrados." << endl;
+    if (!contadores[0] || !contadores[1]) {
+        cout << "\n" << (!contadores[0] ? "No hay productos" : "No hay clientes") 
+             << " registrados.\n";
         return;
     }
     
-    if(contadorClientes == 0) {
-        cout << endl << "No hay clientes registrados." << endl;
+    mostrarEncabezado("REALIZAR VENTA");
+    
+    // Selección de cliente
+    cout << "=== LISTA DE CLIENTES ===\n";
+    for (int i = 0; i < contadores[1]; i++)
+        cout << i + 1 << ". " << clientes[i].nombre << " (" << clientes[i].extra << ")\n";
+    
+    int opcionCliente = leerValor<int>("\nSeleccione cliente: ", 1, contadores[1]) - 1;
+    cout << "\nCliente: " << clientes[opcionCliente].nombre 
+             << " (" << clientes[opcionCliente].extra << ")\n\n";
+    
+    // Selección de producto
+    int codigo = leerValor<int>("Código de producto: ");
+    int indiceProducto = buscarPorCodigo(productos, contadores[0], codigo);
+    
+    if (indiceProducto == -1) {
+        cout << "Producto no encontrado.\n";
         return;
     }
     
-    cout << endl << "--- REALIZAR VENTA ---" << endl << endl;
+    Producto& p = productos[indiceProducto];
+    cout << "Producto: " << p.nombre << " - Stock: " << p.stock 
+         << " - Precio: $" << fixed << setprecision(2) << p.extra << "\n";
     
-    int opcionCliente, codProducto, cantidad;
+    // Validar cantidad
+    int cantidad = leerValor<int>("Cantidad: ", 1, p.stock);
     
-    // Mostrar lista de clientes disponibles
-    cout << "=== LISTA DE CLIENTES ===" << endl;
-    for(int i = 0; i < contadorClientes; i++) {
-        cout << i + 1 << ". " << clientes[i].nombre 
-             << " (Codigo: " << clientes[i].codigo 
-             << ", Tipo: " << clientes[i].tipo << ")" << endl;
-    }
-    
-    // Solicitar selección de cliente
-    cout << endl << "Seleccione el número del cliente: ";
-    cin >> opcionCliente;
-    
-    // Validar selección
-    if(opcionCliente < 1 || opcionCliente > contadorClientes) {
-        cout << "Opción de cliente inválida." << endl;
-        return;
-    }
-    
-    int indiceCliente = opcionCliente - 1;
-    cout << endl << "Cliente seleccionado: " << clientes[indiceCliente].nombre 
-         << " (" << clientes[indiceCliente].tipo << ")" << endl;
-    
-    cout << "Cliente: " << clientes[indiceCliente].nombre 
-         << " (" << clientes[indiceCliente].tipo << ")" << endl << endl;
-    
-    // Solicitar código de producto
-    cout << "Ingrese codigo de producto: ";
-    cin >> codProducto;
-    
-    // Buscar producto
-    int indiceProducto = buscarProductoPorCodigo(codProducto);
-    
-    if(indiceProducto == -1) {
-        cout << "Error: Producto no encontrado." << endl;
-        return;
-    }
-    
-    cout << "Producto: " << productos[indiceProducto].nombre << endl;
-    cout << "Precio unitario: $" << fixed << setprecision(2) 
-         << productos[indiceProducto].precio << endl;
-    cout << "Stock disponible: " << productos[indiceProducto].stock << endl << endl;
-    
-    // Solicitar cantidad
-    cout << "Ingrese cantidad a vender: ";
-    cin >> cantidad;
-    
-    // Verificar stock disponible
-    if(cantidad > productos[indiceProducto].stock) {
-        cout << "Error: Stock insuficiente." << endl;
-        return;
-    }
-    
-    if(cantidad <= 0) {
-        cout << "Error: La cantidad debe ser mayor a 0." << endl;
-        return;
-    }
+    // Procesar venta
+    p.stock -= cantidad;
+    float total = cantidad * p.extra;
     
     // Registrar venta
-    ventas[contadorVentas][0] = clientes[indiceCliente].codigo;
-    ventas[contadorVentas][1] = codProducto;
-    ventas[contadorVentas][2] = cantidad;
-    contadorVentas++;
+    ventas[contadores[2]][0] = clientes[opcionCliente].codigo;
+    ventas[contadores[2]][1] = p.codigo;
+    ventas[contadores[2]][2] = cantidad;
+    contadores[2]++;
     
-    // Descontar stock
-    productos[indiceProducto].stock -= cantidad;
-    
-    // Calcular total de la venta
-    float total = cantidad * productos[indiceProducto].precio;
-    
-    cout << endl << "--- RESUMEN DE VENTA ---" << endl;
-    cout << "Total: $" << fixed << setprecision(2) << total << "\n";
-    cout << "Stock restante: " << productos[indiceProducto].stock << "\n";
-    cout << "\n¡Venta registrada exitosamente!\n";
+    cout << "\n--- RESUMEN DE VENTA ---\n"
+         << "Total: $" << fixed << setprecision(2) << total << "\n"
+         << "Stock restante: " << p.stock << "\n"
+         << "\n¡Venta registrada exitosamente!\n";
 }
 
-// Función para mostrar el stock de todos los productos
-// Lista los productos en formato tabular
-void mostrarStock() {
-    if(contadorProductos == 0) {
+void mostrarProductos() {
+    if (!contadores[0]) {
         cout << "\nNo hay productos registrados.\n";
         return;
     }
     
-    cout << endl << "--- STOCK DE PRODUCTOS ---" << endl << endl;
-    mostrarEncabezadoProductos();
+    mostrarEncabezado("STOCK DE PRODUCTOS");
     
-    for(int i = 0; i < contadorProductos; i++) {
-        mostrarProducto(i);
+    cout << left << setw(10) << "Código" << setw(25) << "Nombre"
+         << setw(12) << "Precio" << setw(10) << "Stock" << "\n"
+         << string(57, '-') << '\n';
+    
+    for (int i = 0; i < contadores[0]; i++) {
+        cout << left << setw(10) << productos[i].codigo
+             << setw(25) << productos[i].nombre
+             << "$" << setw(11) << fixed << setprecision(2) << productos[i].extra
+             << setw(10) << productos[i].stock << '\n';
     }
 }
 
-// Función para buscar un producto por código
 void buscarProducto() {
-    if(contadorProductos == 0) {
+    if (!contadores[0]) {
         cout << "\nNo hay productos registrados.\n";
         return;
     }
     
-    cout << "\n--- BUSCAR PRODUCTO ---\n";
-    int codigo;
-    cout << "Ingrese codigo de producto: ";
-    cin >> codigo;
+    mostrarEncabezado("BUSCAR PRODUCTO");
     
-    int indice = buscarProductoPorCodigo(codigo);
+    int codigo = leerValor<int>("Ingrese código de producto: ");
+    int indice = buscarPorCodigo(productos, contadores[0], codigo);
     
-    if(indice == -1) {
-        cout << endl << "Producto no encontrado." << endl;
+    if (indice == -1) {
+        cout << "\nProducto no encontrado.\n";
         return;
     }
     
-    cout << "\n--- INFORMACION DEL PRODUCTO ---\n";
-    cout << "Codigo: " << productos[indice].codigo << "\n";
-    cout << "Nombre: " << productos[indice].nombre << "\n";
-    cout << "Precio: $" << fixed << setprecision(2) << productos[indice].precio << "\n";
-    cout << "Stock: " << productos[indice].stock << "\n";
+    cout << "\n--- INFORMACIÓN DEL PRODUCTO ---\n"
+         << "Código: " << productos[indice].codigo << "\n"
+         << "Nombre: " << productos[indice].nombre << "\n"
+         << "Precio: $" << fixed << setprecision(2) << productos[indice].extra << "\n"
+         << "Stock: " << productos[indice].stock << "\n";
 }
 
-// Función para generar resumen de ventas
-// Calcula totales por producto y por cliente
-void mostrarResumen() {
-    if(contadorVentas == 0) {
-        cout << endl << "No hay ventas registradas." << endl;
+void mostrarResumenVentas() {
+    if (!contadores[2]) {
+        cout << "\nNo hay ventas registradas.\n";
         return;
     }
     
-    // Inicializar matrices auxiliares
-    for(int i = 0; i < MAX_PRODUCTOS; i++) {
-        totalPorProducto[i][0] = 0;
-        totalPorProducto[i][1] = 0;
-    }
-    for(int i = 0; i < MAX_CLIENTES; i++) {
-        totalPorCliente[i][0] = 0;
-        totalPorCliente[i][1] = 0;
-    }
+    mostrarEncabezado("RESUMEN DE VENTAS");
     
-    // Calcular totales
-    for(int i = 0; i < contadorVentas; i++) {
+    // Estructura para acumular totales
+    struct Total { int codigo; float monto; };
+    Total porProducto[MAX_PRODUCTOS] = {0}, porCliente[MAX_CLIENTES] = {0};
+    float totalGeneral = 0;
+    
+    // Procesar ventas
+    for (int i = 0; i < contadores[2]; i++) {
         int codCliente = ventas[i][0];
         int codProducto = ventas[i][1];
         int cantidad = ventas[i][2];
         
-        // Obtener precio del producto usando la función auxiliar
-        float precio = obtenerPrecioProducto(codProducto);
-        float total = cantidad * precio;
+        // Buscar producto para obtener precio
+        int idxProd = buscarPorCodigo(productos, contadores[0], codProducto);
+        if (idxProd == -1) continue;
+        
+        float total = cantidad * productos[idxProd].extra;
+        totalGeneral += total;
         
         // Acumular por producto
-        bool productoEncontrado = false;
-        for(int j = 0; j < MAX_PRODUCTOS; j++) {
-            if(static_cast<int>(totalPorProducto[j][0]) == codProducto) {
-                totalPorProducto[j][1] += total;
-                productoEncontrado = true;
-                break;
-            }
-            if(static_cast<int>(totalPorProducto[j][0]) == 0 && !productoEncontrado) {
-                totalPorProducto[j][0] = static_cast<float>(codProducto);
-                totalPorProducto[j][1] = total;
-                break;
-            }
+        for (auto& p : porProducto) {
+            if (p.codigo == 0) { p.codigo = codProducto; p.monto = total; break; }
+            if (p.codigo == codProducto) { p.monto += total; break; }
         }
         
         // Acumular por cliente
-        bool clienteEncontrado = false;
-        for(int j = 0; j < MAX_CLIENTES; j++) {
-            if(static_cast<int>(totalPorCliente[j][0]) == codCliente) {
-                totalPorCliente[j][1] += total;
-                clienteEncontrado = true;
-                break;
-            }
-            if(static_cast<int>(totalPorCliente[j][0]) == 0 && !clienteEncontrado) {
-                totalPorCliente[j][0] = static_cast<float>(codCliente);
-                totalPorCliente[j][1] = total;
-                break;
-            }
+        for (auto& c : porCliente) {
+            if (c.codigo == 0) { c.codigo = codCliente; c.monto = total; break; }
+            if (c.codigo == codCliente) { c.monto += total; break; }
         }
     }
     
     // Mostrar resumen por producto
-    cout << endl << "--- RESUMEN DE VENTAS POR PRODUCTO ---" << endl << endl;
-    cout << left << setw(10) << "Codigo" 
-         << setw(25) << "Nombre" 
-         << setw(15) << "Total Vendido" << endl;
-    cout << string(50, '-') << endl;
-    
-    for(int i = 0; i < MAX_PRODUCTOS; i++) {
-        if(totalPorProducto[i][0] != 0) {
-            int cod = static_cast<int>(totalPorProducto[i][0]);
-            string nombre = obtenerNombreProducto(cod);
-            
-            cout << left << setw(10) << cod
-                 << setw(25) << nombre
-                 << "$" << fixed << setprecision(2) 
-                 << totalPorProducto[i][1] << endl;
+    auto mostrarResumen = [](const string& titulo, auto& items, int max, auto getNombre) {
+        cout << "--- " << titulo << " ---\n"
+             << left << setw(10) << "Código" << setw(25) << "Descripción" 
+             << setw(15) << "Total" << "\n" << string(50, '-') << '\n';
+        
+        for (const auto& item : items) {
+            if (item.codigo == 0) continue;
+            cout << left << setw(10) << item.codigo 
+                 << setw(25) << getNombre(item.codigo)
+                 << "$" << fixed << setprecision(2) << item.monto << '\n';
         }
-    }
+    };
     
-    // Mostrar resumen por cliente
-    cout << endl << "--- RESUMEN DE VENTAS POR CLIENTE ---" << endl << endl;
-    cout << left << setw(10) << "Codigo" 
-         << setw(25) << "Nombre" 
-         << setw(15) << "Total Comprado" << endl;
-    cout << string(50, '-') << endl;
+    mostrarResumen("POR PRODUCTO", porProducto, contadores[0], [](int cod) {
+        int idx = buscarPorCodigo(productos, contadores[0], cod);
+        return idx != -1 ? productos[idx].nombre : "Producto eliminado";
+    });
     
-    for(int i = 0; i < MAX_CLIENTES; i++) {
-        if(totalPorCliente[i][0] != 0) {
-            int cod = static_cast<int>(totalPorCliente[i][0]);
-            string nombre = obtenerNombreCliente(cod);
-            
-            cout << left << setw(10) << cod
-                 << setw(25) << nombre
-                 << "$" << fixed << setprecision(2) 
-                 << totalPorCliente[i][1] << endl;
-        }
-    }
+    cout << '\n';
     
-    // Calcular total general
-    float totalGeneral = 0;
-    for(int i = 0; i < MAX_PRODUCTOS; i++) {
-        totalGeneral += totalPorProducto[i][1];
-    }
+    mostrarResumen("POR CLIENTE", porCliente, contadores[1], [](int cod) {
+        int idx = buscarPorCodigo(clientes, contadores[1], cod);
+        return idx != -1 ? clientes[idx].nombre : "Cliente eliminado";
+    });
     
-    cout << endl << string(50, '-') << endl;
-    cout << "TOTAL GENERAL DE VENTAS: $" << fixed << setprecision(2) 
-         << totalGeneral << endl;
+    cout << '\n' << string(50, '-') << '\n'
+         << "TOTAL GENERAL: $" << fixed << setprecision(2) << totalGeneral << '\n';
 }
